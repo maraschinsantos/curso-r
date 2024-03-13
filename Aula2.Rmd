@@ -1,0 +1,110 @@
+---
+title: "Aula2"
+author: "João Miguel Maraschin Santos, 2024"
+date: "2024-03-13"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+#Baixar pacotes
+```{r}
+#install.packages("tidyverse") coleção para datascience
+#install.packages("tidyterra") coleção para mapas
+#install.packages("geobr") base de dados ibge
+#install.packages("elevatr") base de datos de elevação
+#install.packages("terra") análise de dados espaciais 
+#install.packages("sf") "tidyverse" para dados espaciais 
+#install.packages("ggspatial") recursos gráficos para plots
+#install.packages("mapview") Google maps
+#install.packages("rnaturalearth") shp dos países
+#install.packages("devtools") ferramentas do desenvolvedor 
+```
+
+#Instalar pacotes
+```{r}
+library(tidyverse)
+library(tidyterra)
+library(geobr)
+library(elevatr)
+library(terra)
+library(sf)
+library(ggspatial)
+library(mapview)
+library(rnaturalearth)
+library(devtools)
+```
+
+
+#1 Mapview, rnaturalearth e elevatr
+```{r}
+#mapview - Google Streetview
+mapview()
+
+#1. carregar pontos (ou shapes) para visualização no mapview
+pontos_csv <- read.csv("./Arquivos/pontos_andes.csv") %>%
+  as_tibble()
+
+csv_sf <- st_as_sf(pontos_csv, coords = c("Longitude", "Latitude"), crs = 4326) #crs = WGS84
+
+mapview(csv_sf)
+
+
+#rnaturalearth + elevatr - SRTM
+#1. Carregar os arquivos
+argentina <- ne_countries(country = "argentina", scale = "medium")
+chile <- ne_countries(country = "chile", scale = "medium")
+bolivia <- ne_countries(country = "bolivia", scale = "medium")
+
+plot(argentina$geometry)
+plot(chile$geometry)
+plot(bolivia$geometry)
+
+#2. Salvar como .shp
+arg <- st_write(argentina, "./Produtos/argentina.shp")
+chl <- st_write(chile, "./Produtos/chile.shp")
+bol <-st_write(bolivia, "./Produtos/bolivia.shp")
+
+#3. Raster elevação
+elev <- get_elev_raster(locations = argentina, z =7)
+plot(elev)
+
+#4. Transformar um spatial raster em dataframe
+elev_spdf <- as(elev, "SpatialPixelsDataFrame")
+elev_df <- as.data.frame(elev_spdf)
+colnames(elev_df) <- c("value", "x", "y")
+```
+
+
+#2 Mapa dos Andes Centrais - Altitude
+```{r}
+hipso <- colorRampPalette(c("lightblue", "blue", "darkblue", "green", "gold", "darkgoldenrod", "brown","white"))(100) #escala de cor
+
+andes <- ggplot()+
+  geom_tile(data = elev_df, aes(x=x, y=y, fill=value, alpha = 0.5)) +       #raster
+  geom_sf(data = arg, fill = "transparent", linetype = 2 ,color = "black")+ #arg
+  geom_sf(data = chl, fill = "transparent", linetype = 2 ,color = "black")+ #chl
+  geom_sf(data = bol, fill = "transparent", linetype = 2 ,color = "black")+ #bol
+  geom_sf(data = csv_sf, shape = "x", size = 3)+                            #pontos
+  #geom_sf_text(data = csv_sf, aes(label = Title)+                          #nome dos pontos
+  scale_fill_gradientn(colors = hipso)+                                     #escala de cor
+  lims(x = c(-71,-65),                                                      #limites do gráfico
+       y = c(-26,-20))+
+  coord_sf(expand = FALSE)+                                                 #remover espaço do gráfico
+  annotation_scale(location = "bl")+
+  annotation_north_arrow(location = "tr")+
+  labs(x = "Longitude",
+       y = "Latitude",
+       title = "Geologia dos Andes Centrais",
+       subtitle = "UFRGS, 2023",
+       fill = "Altitude")
+
+plot(andes)
+```
+
+
+#3. Mapa de elevação da Região X
+```{r}
+
+```
+
