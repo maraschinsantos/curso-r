@@ -1,0 +1,115 @@
+---
+title: "Aula3"
+author: "João Miguel Maraschin Santos, 2024"
+date: "2024-03-13"
+output: html_document
+---
+
+
+#Baixar pacotes
+```{r}
+#install.packages("tidyverse") coleção para datascience
+#install.packages("tidyterra") coleção para mapas
+#install.packages("geobr") base de dados ibge
+#install.packages("elevatr") base de datos de elevação
+#install.packages("terra") análise de dados espaciais 
+#install.packages("sf") "tidyverse" para dados espaciais 
+#install.packages("ggspatial") recursos gráficos para plots
+#install.packages("mapview") Google maps
+#install.packages("rnaturalearth") shp dos países
+#install.packages("devtools") ferramentas do desenvolvedor 
+```
+
+#Instalar pacotes
+```{r}
+library(tidyverse)
+library(tidyterra)
+library(geobr)
+library(elevatr)
+library(terra)
+library(sf)
+library(ggspatial)
+library(mapview)
+library(rnaturalearth)
+library(devtools)
+```
+
+
+#1. Geobr, elevatr
+```{r}
+#1. Carregar shapes
+poa <- read_municipality(code_muni = 4314902,2020) %>% 
+  st_transform(crs = 32722)
+
+poa_geo <- st_read("./poa/Unidades_litoestratigráficas_-_1_1_000_000_[2004].shp") %>% 
+  st_transform(crs = 32722) %>% 
+  st_intersection(.,poa)
+
+#2. Conferir litologias
+unique(poa_geo$NOME)
+
+#3. Organizar litologias
+poa_geo$NOME <- factor(poa_geo$NOME, levels = c("Unidade Depósitos eólicos atuais","Unidade Depósitos de planície lagunar atual","Unidade Depósitos de turfas","Unidade Depósitos de barreira holocênica - depósitos deltáicos","Depósitos aluvionares","Depósitos eluviais e coluviais","Suíte Cerro Grande","Fácies Serra do Herval","Suíte Dom Feliciano"))
+
+#4. Carregar elev
+elev_poa <- get_elev_raster(locations = poa, z =10)
+topo_poa <- mask(elev_poa,poa)
+plot(topo_poa)
+
+#Raster to dataframe
+poa_spdf <- as(topo_poa, "SpatialPixelsDataFrame")
+poa_df <- as.data.frame(poa_spdf)
+colnames(poa_df) <- c("value", "x", "y")
+
+#Dataframe to shapefile
+poa_sf <- st_as_sf(poa_df, coords = c("x", "y"))
+st_write(poa_sf,"./Produtos/mdt.shp")
+
+#5. mapiview
+mapview(poa_geo,zcol = "NOME",col.regions = c("yellow","yellow3","gold","goldenrod","orange","darkorange1","lightsalmon","salmon","darkred"),alpha.regions = 0.5)
+
+mapview(topo_poa)
+```
+
+
+#2. Mapa de Porto Alegre - Geologia
+```{r}
+#4.Plot
+mapa_poa <- ggplot()+
+  geom_sf(data = poa_geo, aes(fill = NOME))+
+  scale_fill_manual(values = c("yellow","yellow3","gold","goldenrod","orange","darkorange1","lightsalmon","salmon","darkred"))+
+  theme_classic()+
+  annotation_scale(location = "bl")+
+  annotation_north_arrow(location = "tr")+
+  labs(title = "Geodiversidade de Porto Alegre",
+       subtitle = "CPRM, 2004",
+       caption = "Extraído de https://geosgb.sgb.gov.br",
+       fill = "Unidades Litológicas")
+
+plot(mapa_poa)
+```
+
+
+#3. Mapa de Porto Alegre - Topo
+```{r}
+topo_bg <- colorRampPalette(c("black","white"))(100)
+
+mdt_poa <- ggplot()+
+  geom_tile(data = poa_df,aes(x=x, y=y, fill=value))+
+  scale_fill_gradientn(colors = topo_bg)+
+  theme_classic()+
+  annotation_scale(location = "bl")+
+  annotation_north_arrow(location = "tr")+
+  labs(title = "MDT - Porto Alegre",
+       subtitle = "Amazon Web Services",
+       caption = "Get Raster Elevation - ElevatR",
+       fill = "Elevação")
+
+plot(mdt_poa)
+```
+
+#4. Mapa da Cidade X
+```{r}
+
+```
+
