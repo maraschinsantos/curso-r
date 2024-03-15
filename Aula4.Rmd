@@ -1,0 +1,40 @@
+---
+title: "Aula4"
+author: "João Miguel Maraschin Santos, 2024"
+date: "2024-03-15"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+#Instalar pacotes
+```{r}
+library(tidyverse)
+library(tidyterra)
+library(geobr)
+library(elevatr)
+library(terra)
+library(sf)
+library(ggspatial)
+library(mapview)
+library(rnaturalearth)
+library(devtools)
+```
+
+```{r}
+volc <- read_xlsx("./Arquivos/volcano.xlsx") %>% 
+  as_tibble()
+
+volc %>% 
+  mutate(X=longitude,
+         Y=latitude) %>%                                                        #mutate - criar coluna X e Y como long/lat
+   st_as_sf(coords=c("longitude","latitude"),
+           crs= 4326) %>% 
+  st_transform(crs = 3857) %>%                                                #transform epsg -> wgs
+  dplyr::select(X,Y,major_rock_1,primary_volcano_type,tectonic_settings) %>%
+  mapview(zcol="major_rock_1")
+  #ggplot()+
+  #geom_sf(data=volc)+
+  #geom_sf(data=africa)
+```
+
