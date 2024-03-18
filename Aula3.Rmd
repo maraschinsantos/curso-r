@@ -3,6 +3,8 @@ title: "Aula3"
 author: "João Miguel Maraschin Santos, 2024"
 date: "2024-03-13"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 
@@ -17,6 +19,7 @@ output: html_document
 #install.packages("ggspatial") recursos gráficos para plots
 #install.packages("mapview") Google maps
 #install.packages("rnaturalearth") shp dos países
+#install.packages("rayshader") render3D
 #install.packages("devtools") ferramentas do desenvolvedor 
 ```
 
@@ -31,6 +34,7 @@ library(sf)
 library(ggspatial)
 library(mapview)
 library(rnaturalearth)
+library(rayshader)
 library(devtools)
 ```
 
@@ -41,6 +45,9 @@ library(devtools)
 poa <- read_municipality(code_muni = 4314902,2020) %>% 
   st_transform(crs = 32722)
 
+rs <- read_state(code_state = 43, 2020) %>% 
+  st_transform(crs = 32722)
+  
 poa_geo <- st_read("./poa/Unidades_litoestratigráficas_-_1_1_000_000_[2004].shp") %>% 
   st_transform(crs = 32722) %>% 
   st_intersection(.,poa)
@@ -66,7 +73,7 @@ poa_sf <- st_as_sf(poa_df, coords = c("x", "y"))
 st_write(poa_sf,"./Produtos/mdt.shp")
 
 #5. mapiview
-mapview(poa_geo,zcol = "NOME",col.regions = c("yellow","yellow3","gold","goldenrod","orange","darkorange1","lightsalmon","salmon","darkred"),alpha.regions = 0.5)
+mapview(poa_geo,zcol = "NOME",col.regions = c("yellow","yellow3","gold","goldenrod","orange","darkorange1","lightsalmon","salmon","darkred"),alpha.regions = 1)
 
 mapview(topo_poa)
 ```
@@ -79,7 +86,8 @@ mapa_poa <- ggplot()+
   geom_sf(data = poa_geo, aes(fill = NOME))+
   scale_fill_manual(values = c("yellow","yellow3","gold","goldenrod","orange","darkorange1","lightsalmon","salmon","darkred"))+
   theme_classic()+
-  annotation_scale(location = "bl")+
+  annotation_scale(location = "bl",
+                   width_hint = 0.5)+
   annotation_north_arrow(location = "tr")+
   labs(title = "Geodiversidade de Porto Alegre",
        subtitle = "CPRM, 2004",
@@ -106,10 +114,156 @@ mdt_poa <- ggplot()+
        fill = "Elevação")
 
 plot(mdt_poa)
+
+
 ```
 
-#4. Mapa da Cidade X
+#4. Mapa de elevação do Rio Grande do Sul
 ```{r}
+rs_elev <- get_elev_raster(location = rs, z=7)
+rs_recorte <- mask (rs_elev,rs)
+rs_spdf <- as(rs_recorte, "SpatialPixelsDataFrame")
+rs_df <- as.data.frame(rs_spdf)
+colnames(rs_df) <- c("value", "x", "y")
+rs_sf <- st_as_sf(rs_df, coords = c("x", "y"))
 
+topo_rs <- colorRampPalette(c("darkgreen","limegreen","yellow","orange","red","brown","white"))(100)
+
+mdt_rs <- ggplot()+
+  geom_tile(data = rs_df,aes(x=x, y=y, fill=value))+
+  scale_fill_gradientn(colors = topo_rs)+
+  theme_classic()+
+  annotation_scale(location = "bl")+
+  annotation_north_arrow(location = "tr")+
+  labs(title = "MDT - Rio Grande do Sul",
+       subtitle = "Amazon Web Services",
+       caption = "Get Raster Elevation - ElevatR",
+       fill = "Elevação")
+
+plot(mdt_rs)
 ```
+
+#5. Mapa Península de Bombinhas
+```{r}
+bb <- read_municipality(code_muni = 4202453,2020) %>%
+  st_transform(crs = 32722)
+
+pb <- read_municipality(code_muni = 4213500,2020) %>% 
+  st_transform(crs = 32722)
+
+sc <- st_union (bb,pb)
+  
+sc_geo <- st_read("./sc/Unidades_litoestratigráficas_-_1_1_000_000_[2004].shp") %>% 
+  st_transform(crs = 32722) %>% 
+  st_intersection(.,sc)
+
+sc_geo$NOME <- factor(sc_geo$NOME, levels = c("Depósitos litorâneos","Complexo Granítico Estaleiro","Suíte intrusiva","Complexo Granito Estaleiro","Grupo Brusque","Corpo Milonitos e Protomilonitos  Major Gercino","Suíte Valsungana","Unidade Vulcânica","Suíte intrusiva Granito Zimbros","Corpo Granito Imaruí-Capivari","Complexo Águas Mornas","Unidade Santa Catarina, rochas orto e paraderivadas"))
+
+mapa_sc <- ggplot()+
+  geom_sf(data = sc_geo, aes(fill = NOME))+
+  scale_fill_manual(values = c("yellow","yellow3","gold","goldenrod","orange","darkorange1","lightsalmon","salmon","darkred","pink"))+
+  theme_classic()+
+  annotation_scale(location = "bl",
+                   width_hint = 0.5)+
+  annotation_north_arrow(location = "tr")+
+  labs(title = "Geodiversidade de Bombinhas/Porto Belo",
+       subtitle = "CPRM, 2004",
+       caption = "Extraído de https://geosgb.sgb.gov.br",
+       fill = "Unidades Litológicas")
+
+plot(mapa_sc)
+```
+
+
+#6. Rayshader
+```{r}
+library(rayshader)
+
+#Here, I load a map with the raster package.
+loadzip = tempfile() 
+download.file("https://tylermw.com/data/dem_01.tif.zip", loadzip)
+localtif = raster::raster(unzip(loadzip, "dem_01.tif"))
+unlink(loadzip)
+
+#And convert it to a matrix:
+elmat = raster_to_matrix(localtif)
+
+#We use another one of rayshader's built-in textures:
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+  plot_map()
+
+#sphere_shade can shift the sun direction:
+elmat %>%
+  sphere_shade(sunangle = 45, texture = "desert") %>%
+  plot_map()
+
+#detect_water and add_water adds a water layer to the map:
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+  add_water(detect_water(elmat), color = "desert") %>%
+  plot_map()
+
+#And we can add a raytraced layer from that sun direction as well:
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+  add_water(detect_water(elmat), color = "desert") %>%
+  add_shadow(ray_shade(elmat), 0.5) %>%
+  plot_map()
+
+#And we can add a raytraced layer from that sun direction as well:
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+  add_water(detect_water(elmat), color = "desert") %>%
+  add_shadow(ray_shade(elmat), 0.5) %>%
+  plot_map()
+
+#And here we add an ambient occlusion shadow layer, which models 
+#lighting from atmospheric scattering:
+
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+  add_water(detect_water(elmat), color = "desert") %>%
+  add_shadow(ray_shade(elmat), 0.5) %>%
+  add_shadow(ambient_shade(elmat), 0) %>%
+  plot_map()
+
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+  add_water(detect_water(elmat), color = "desert") %>%
+  add_shadow(ray_shade(elmat, zscale = 3), 0.5) %>%
+  add_shadow(ambient_shade(elmat), 0) %>%
+  plot_3d(elmat, zscale = 10, fov = 0, theta = 135, zoom = 0.75, phi = 45, windowsize = c(1000, 800))
+Sys.sleep(0.2)
+render_snapshot()
+
+render_camera(fov = 0, theta = 60, zoom = 0.75, phi = 45)
+render_scalebar(limits=c(0, 5, 10),label_unit = "km",position = "W", y=50,
+                scale_length = c(0.33,1))
+render_compass(position = "E")
+render_snapshot(clear=TRUE)
+```
+
+#7. Rayshader próprio
+```{r}
+#1. Carregar elev
+elev_poa <- get_elev_raster(locations = poa, z =10)
+topo_poa <- mask(elev_poa,poa)
+plot(topo_poa)
+
+#4. Raster do matrix
+elmat <- raster_to_matrix("./poa.tif")
+
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+   add_water(detect_water(elmat), color = "desert") %>%
+   add_shadow(ray_shade(elmat), 1) %>%
+   add_shadow(ambient_shade(elmat), 0) %>%
+   plot_3d(elmat,zscale = 12, zoom = 10, windowsize = c(1000, 800)) %>% 
+   render_compass() %>% 
+   render_snapshot()
+  
+```
+
+
 
